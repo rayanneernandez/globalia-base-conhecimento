@@ -32,7 +32,7 @@ export const VideoViewModal = ({ open, onOpenChange, video }: VideoViewModalProp
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-card/95 backdrop-blur-md border-primary/20">
+      <DialogContent className="w-[95vw] max-w-4xl max-h-[90vh] overflow-y-auto overflow-x-hidden bg-card/95 backdrop-blur-md border-primary/20">
         <DialogHeader>
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
@@ -52,7 +52,7 @@ export const VideoViewModal = ({ open, onOpenChange, video }: VideoViewModalProp
           </div>
         </DialogHeader>
 
-        <div className="space-y-6 mt-4">
+        <div className="space-y-6 mt-4 overflow-x-hidden">
           {/* Media Carousel */}
           {video.media.length > 0 && (
             <div className="relative">
@@ -93,7 +93,7 @@ export const VideoViewModal = ({ open, onOpenChange, video }: VideoViewModalProp
           {/* Description */}
           <div>
             <h3 className="text-lg font-semibold text-foreground mb-2">Descrição</h3>
-            <p className="text-muted-foreground">{video.description}</p>
+            <p className="text-muted-foreground break-words">{video.description}</p>
           </div>
 
           {/* Steps */}
@@ -106,7 +106,7 @@ export const VideoViewModal = ({ open, onOpenChange, video }: VideoViewModalProp
                     <span className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-primary/20 text-primary font-semibold">
                       {index + 1}
                     </span>
-                    <p className="text-muted-foreground pt-1">{step}</p>
+                    <p className="text-muted-foreground pt-1 break-words">{step}</p>
                   </li>
                 ))}
               </ol>

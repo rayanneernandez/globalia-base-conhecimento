@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -27,7 +27,11 @@ interface AddVideoModalProps {
   }) => Promise<void>;
 }
 
-export const AddVideoModal = ({ open, onOpenChange, onAdd }: AddVideoModalProps) => {
+export const AddVideoModal: React.FC<AddVideoModalProps> = ({
+  open,
+  onOpenChange,
+  onAdd,
+}) => {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [duration, setDuration] = useState("");
@@ -48,9 +52,9 @@ export const AddVideoModal = ({ open, onOpenChange, onAdd }: AddVideoModalProps)
     try {
       for (const file of Array.from(files)) {
         // Validate file type
-        const isImage = file.type.startsWith('image/');
-        const isVideo = file.type.startsWith('video/');
-        
+        const isImage = file.type.startsWith("image/");
+        const isVideo = file.type.startsWith("video/");
+
         if (!isImage && !isVideo) {
           toast({
             title: "Tipo de arquivo inválido",
@@ -61,37 +65,54 @@ export const AddVideoModal = ({ open, onOpenChange, onAdd }: AddVideoModalProps)
         }
 
         // Generate unique filename
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-        const filePath = `${fileName}`;
+        const fileExt = file.name.split(".").pop() ?? "";
+        const fileName = `${Date.now()}-${Math.random()
+          .toString(36)
+          .substring(7)}.${fileExt}`;
+        const filePath = fileName;
 
         // Upload to Supabase Storage
         const { data, error } = await supabase.storage
-          .from('knowledge-media')
+          .from("knowledge-media")
           .upload(filePath, file, {
-            cacheControl: '3600',
-            upsert: false
+            cacheControl: "3600",
+            upsert: false,
           });
 
         if (error) {
-          throw error;
+          // Log but continue with next file
+          console.error("Supabase upload error:", error);
+          toast({
+            title: "Erro no upload",
+            description: `Falha ao enviar ${file.name}`,
+            variant: "destructive",
+          });
+          continue;
         }
 
-        // Get public URL
-        const { data: { publicUrl } } = supabase.storage
-          .from('knowledge-media')
+        // Get public URL (safe access)
+        const publicResponse = supabase.storage
+          .from("knowledge-media")
           .getPublicUrl(filePath);
+        // getPublicUrl returns { data: { publicUrl } }
+        const publicUrl = (publicResponse as any)?.data?.publicUrl ?? "";
 
-        uploadedUrls.push(publicUrl);
+        if (!publicUrl) {
+          console.warn("Could not get public URL for", filePath);
+        } else {
+          uploadedUrls.push(publicUrl);
+        }
       }
 
-      setMedia([...media, ...uploadedUrls]);
-      toast({
-        title: "Upload concluído!",
-        description: `${uploadedUrls.length} arquivo(s) enviado(s) com sucesso`,
-      });
-    } catch (error) {
-      console.error('Error uploading files:', error);
+      if (uploadedUrls.length > 0) {
+        setMedia((prev) => [...prev, ...uploadedUrls]);
+        toast({
+          title: "Upload concluído!",
+          description: `${uploadedUrls.length} arquivo(s) enviado(s) com sucesso`,
+        });
+      }
+    } catch (err) {
+      console.error("Error uploading files:", err);
       toast({
         title: "Erro no upload",
         description: "Não foi possível enviar os arquivos. Tente novamente.",
@@ -99,31 +120,35 @@ export const AddVideoModal = ({ open, onOpenChange, onAdd }: AddVideoModalProps)
       });
     } finally {
       setIsUploading(false);
-      // Reset input
-      event.target.value = '';
+      // Reset input value so the same file can be selected again
+      try {
+        event.target.value = "";
+      } catch {
+        /* ignore */
+      }
     }
   };
 
   const handleAddMedia = () => {
     if (mediaUrl.trim()) {
-      setMedia([...media, mediaUrl.trim()]);
+      setMedia((prev) => [...prev, mediaUrl.trim()]);
       setMediaUrl("");
     }
   };
 
   const handleRemoveMedia = (index: number) => {
-    setMedia(media.filter((_, i) => i !== index));
+    setMedia((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleAddStep = () => {
     if (stepInput.trim()) {
-      setSteps([...steps, stepInput.trim()]);
+      setSteps((prev) => [...prev, stepInput.trim()]);
       setStepInput("");
     }
   };
 
   const handleRemoveStep = (index: number) => {
-    setSteps(steps.filter((_, i) => i !== index));
+    setSteps((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async () => {
@@ -136,37 +161,51 @@ export const AddVideoModal = ({ open, onOpenChange, onAdd }: AddVideoModalProps)
       return;
     }
 
-    await onAdd({
-      title: title.trim(),
-      description: description.trim(),
-      duration: duration.trim() || "N/A",
-      category: category.trim(),
-      media,
-      steps,
-    });
+    try {
+      await onAdd({
+        title: title.trim(),
+        description: description.trim(),
+        duration: duration.trim() || "N/A",
+        category: category.trim(),
+        media,
+        steps,
+      });
 
-    // Reset form
-    setTitle("");
-    setDescription("");
-    setDuration("");
-    setCategory("");
-    setMedia([]);
-    setSteps([]);
-    setMediaUrl("");
-    setStepInput("");
-    onOpenChange(false);
+      // Reset form
+      setTitle("");
+      setDescription("");
+      setDuration("");
+      setCategory("");
+      setMedia([]);
+      setSteps([]);
+      setMediaUrl("");
+      setStepInput("");
+      onOpenChange(false);
+
+      toast({
+        title: "Vídeo adicionado",
+        description: "Conteúdo salvo com sucesso.",
+      });
+    } catch (err) {
+      console.error("Error onAdd:", err);
+      toast({
+        title: "Erro",
+        description: "Não foi possível salvar. Tente novamente.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-card/95 backdrop-blur-md border-primary/20">
+      <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto overflow-x-hidden bg-card/95 backdrop-blur-md border-primary/20">
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
             Adicionar Novo Vídeo
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
+        <div className="space-y-4 py-4 overflow-x-hidden px-2">
           {/* Title */}
           <div className="space-y-2">
             <Label htmlFor="title">Título *</Label>
@@ -218,7 +257,7 @@ export const AddVideoModal = ({ open, onOpenChange, onAdd }: AddVideoModalProps)
           {/* Media Upload and URLs */}
           <div className="space-y-2">
             <Label>Mídia (Vídeo/Imagem)</Label>
-            
+
             {/* File Upload */}
             <div className="flex gap-2">
               <label className="flex-1">
@@ -236,7 +275,9 @@ export const AddVideoModal = ({ open, onOpenChange, onAdd }: AddVideoModalProps)
                   variant="outline"
                   className="w-full"
                   disabled={isUploading}
-                  onClick={() => document.getElementById('file-upload')?.click()}
+                  onClick={() =>
+                    document.getElementById("file-upload")?.click()
+                  }
                 >
                   {isUploading ? (
                     <>
@@ -260,18 +301,32 @@ export const AddVideoModal = ({ open, onOpenChange, onAdd }: AddVideoModalProps)
                 onChange={(e) => setMediaUrl(e.target.value)}
                 placeholder="Ou cole a URL da imagem ou vídeo"
                 className="bg-background/50"
-                onKeyPress={(e) => e.key === "Enter" && handleAddMedia()}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleAddMedia();
+                  }
+                }}
                 disabled={isUploading}
               />
-              <Button onClick={handleAddMedia} size="icon" variant="outline" disabled={isUploading}>
+              <Button
+                onClick={handleAddMedia}
+                size="icon"
+                variant="outline"
+                disabled={isUploading}
+              >
                 <Plus className="h-4 w-4" />
               </Button>
             </div>
+
             {media.length > 0 && (
               <div className="space-y-2 mt-2">
                 {media.map((url, index) => (
-                  <div key={index} className="flex items-center gap-2 p-2 bg-secondary/50 rounded-lg">
-                    <span className="flex-1 text-sm truncate">{url}</span>
+                  <div
+                    key={index}
+                    className="flex items-center gap-2 p-2 bg-secondary/50 rounded-lg"
+                  >
+                    <span className="flex-1 text-sm break-all">{url}</span>
                     <Button
                       onClick={() => handleRemoveMedia(index)}
                       size="icon"
@@ -284,50 +339,71 @@ export const AddVideoModal = ({ open, onOpenChange, onAdd }: AddVideoModalProps)
                 ))}
               </div>
             )}
-          </div>
 
-          {/* Steps */}
-          <div className="space-y-2">
-            <Label>Passo a Passo (Opcional)</Label>
-            <div className="flex gap-2">
-              <Input
-                value={stepInput}
-                onChange={(e) => setStepInput(e.target.value)}
-                placeholder="Adicione um passo"
-                className="bg-background/50"
-                onKeyPress={(e) => e.key === "Enter" && handleAddStep()}
-              />
-              <Button onClick={handleAddStep} size="icon" variant="outline">
-                <Plus className="h-4 w-4" />
-              </Button>
-            </div>
-            {steps.length > 0 && (
-              <ol className="space-y-2 mt-2">
-                {steps.map((step, index) => (
-                  <li key={index} className="flex items-start gap-2 p-2 bg-secondary/50 rounded-lg">
-                    <span className="flex-shrink-0 font-semibold text-primary">{index + 1}.</span>
-                    <span className="flex-1 text-sm">{step}</span>
-                    <Button
-                      onClick={() => handleRemoveStep(index)}
-                      size="icon"
-                      variant="ghost"
-                      className="h-6 w-6"
+            {/* Steps */}
+            <div className="space-y-2">
+              <Label>Passo a Passo (Opcional)</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={stepInput}
+                  onChange={(e) => setStepInput(e.target.value)}
+                  placeholder="Adicione um passo"
+                  className="bg-background/50"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleAddStep();
+                    }
+                  }}
+                />
+                <Button onClick={handleAddStep} size="icon" variant="outline">
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+              {steps.length > 0 && (
+                <ol className="space-y-2 mt-2">
+                  {steps.map((step, index) => (
+                    <li
+                      key={index}
+                      className="flex items-start gap-2 p-2 bg-secondary/50 rounded-lg"
                     >
-                      <X className="h-3 w-3" />
-                    </Button>
-                  </li>
-                ))}
-              </ol>
-            )}
+                      <span className="flex-shrink-0 font-semibold text-primary">
+                        {index + 1}.
+                      </span>
+                      <span className="flex-1 text-sm break-words">{step}</span>
+                      <Button
+                        onClick={() => handleRemoveStep(index)}
+                        size="icon"
+                        variant="ghost"
+                        className="h-6 w-6"
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </div>
           </div>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button
+            variant="ghost"
+            onClick={() => onOpenChange(false)}
+            disabled={isUploading}
+          >
             Cancelar
           </Button>
-          <Button onClick={handleSubmit} className="bg-gradient-to-r from-primary to-accent">
-            Adicionar Vídeo
+          <Button onClick={handleSubmit} disabled={isUploading}>
+            {isUploading ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Enviando
+              </>
+            ) : (
+              "Salvar"
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>
